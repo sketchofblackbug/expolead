@@ -95,6 +95,28 @@ select {
   pointer-events: none;
 }
 
+.mic-pulse {
+  animation: mic-breathe 1.2s ease-in-out infinite;
+}
+
+.mic-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255 / 0.55);
+  animation: pulse-ring 1.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes mic-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
 .voice-bar {
   display: inline-block;
   width: 4px;
@@ -172,6 +194,8 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .listening-pulse::before,
   .voice-bar,
+  .mic-pulse,
+  .mic-ring,
   .animate-ping,
   .animate-spin,
   .success-pop,

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
   FileText,
+  Info,
   Loader2,
+  MicOff,
   Phone,
   User,
   Waves,
@@ -40,6 +42,10 @@ const initialForm: LeadCaptureFormState = {
 };
 
 const SUCCESS_RESET_MS = 2800;
+/** Stop listening after this much quiet time */
+const SILENCE_STOP_MS = 3500;
+/** Hard cap so a session never runs forever */
+const MAX_LISTEN_MS = 20000;
 
 const CONFETTI_COLORS = ["#10b981", "#1d4ed8", "#34d399", "#60a5fa", "#0f2744", "#93c5fd"];
 
@@ -53,7 +59,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string; consent?: string }>(
     {}
   );
-  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState<boolean | null>(null);
   const [usedVoice, setUsedVoice] = useState(false);
   const [consent, setConsent] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -64,14 +70,29 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   const shouldRestartRef = useRef(false);
   const accumulatedRef = useRef("");
   const successTimerRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
+  const maxListenTimerRef = useRef<number | null>(null);
+  const lastSpeechAtRef = useRef(0);
 
   useEffect(() => {
     setSpeechSupported(isSpeechRecognitionSupported());
   }, []);
 
+  const clearListenTimers = () => {
+    if (silenceTimerRef.current) {
+      window.clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (maxListenTimerRef.current) {
+      window.clearTimeout(maxListenTimerRef.current);
+      maxListenTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     return () => {
       shouldRestartRef.current = false;
+      clearListenTimers();
       if (successTimerRef.current) {
         window.clearTimeout(successTimerRef.current);
       }
@@ -97,6 +118,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
 
   const stopListening = () => {
     shouldRestartRef.current = false;
+    clearListenTimers();
     try {
       recognitionRef.current?.stop();
     } catch {
@@ -107,6 +129,25 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     setListeningField(null);
     setInterimText("");
     setMode((current) => (current === "listening" ? "idle" : current));
+  };
+
+  const markSpeechActivity = () => {
+    lastSpeechAtRef.current = Date.now();
+  };
+
+  const startSilenceWatch = () => {
+    clearListenTimers();
+    lastSpeechAtRef.current = Date.now();
+
+    silenceTimerRef.current = window.setInterval(() => {
+      if (Date.now() - lastSpeechAtRef.current >= SILENCE_STOP_MS) {
+        stopListening();
+      }
+    }, 400);
+
+    maxListenTimerRef.current = window.setTimeout(() => {
+      stopListening();
+    }, MAX_LISTEN_MS);
   };
 
   const applyFieldTranscript = (field: Exclude<SpeechField, "auto">, transcript: string) => {
@@ -196,6 +237,9 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
 
     recognition.onresult = (event) => {
       const { interim, final } = getTranscriptFromEvent(event);
+      if (interim || final) {
+        markSpeechActivity();
+      }
       if (interim) setInterimText(interim);
 
       if (final) {
@@ -210,10 +254,14 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
 
     recognition.onerror = (event) => {
       if (event.error === "aborted") return;
-      if (continuous && event.error === "no-speech") return;
+      // Let the silence watcher stop the session (don't reset the quiet timer)
+      if (event.error === "no-speech") {
+        return;
+      }
 
       const message = speechErrorMessage(event.error);
       shouldRestartRef.current = false;
+      clearListenTimers();
       setListeningField(null);
       setInterimText("");
       activeFieldRef.current = null;
@@ -223,6 +271,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     };
 
     recognition.onend = () => {
+      // Restart only while still actively listening and silence limit not hit
       if (shouldRestartRef.current && activeFieldRef.current === field) {
         try {
           recognition.start();
@@ -232,6 +281,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
         }
       }
 
+      clearListenTimers();
       if (activeFieldRef.current === field) {
         activeFieldRef.current = null;
         setListeningField(null);
@@ -245,6 +295,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     setListeningField(field === "auto" ? "auto" : field);
     setMode("listening");
     setInterimText("");
+    startSilenceWatch();
 
     try {
       recognition.start();
@@ -418,8 +469,16 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
       </div>
 
       <div className="space-y-5 px-5 py-6 sm:space-y-6 sm:px-7 sm:py-7">
-        {speechSupported ? (
+        {speechSupported === null ? null : speechSupported ? (
           <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/80 px-3.5 py-3 text-xs leading-relaxed text-brand-900 sm:text-sm">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden />
+              <p>
+                Voice works best on Android Chrome. On iPhone, please type your details or use
+                Chrome.
+              </p>
+            </div>
+
             <VoiceCaptureButton
               size="hero"
               label={listeningField === "auto" ? "Stop Voice Capture" : "Start Voice Capture"}
@@ -430,13 +489,13 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
             />
 
             {isListening ? (
-              <div className="listening-panel rounded-2xl border border-accent-500/25 bg-gradient-to-br from-emerald-50 to-white px-4 py-4">
+              <div className="listening-panel rounded-2xl border-2 border-accent-500/40 bg-gradient-to-br from-emerald-50 to-white px-4 py-4 shadow-glow">
                 <div className="flex items-center justify-center gap-2 text-sm font-semibold text-emerald-900">
                   <span className="relative flex h-3 w-3">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-500 opacity-60" />
                     <span className="relative inline-flex h-3 w-3 rounded-full bg-accent-500" />
                   </span>
-                  Listening
+                  Listening…
                   {listeningField === "auto"
                     ? " for name & phone"
                     : listeningField === "name"
@@ -454,6 +513,9 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
                     : liveTranscript
                       ? `Heard: “${liveTranscript}”`
                       : "Speak clearly toward your phone mic…"}
+                </p>
+                <p className="mt-2 text-center text-[11px] text-emerald-800/70">
+                  Stops automatically after a few seconds of silence
                 </p>
               </div>
             ) : null}
@@ -486,10 +548,12 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
             ) : null}
           </div>
         ) : (
-          <ErrorBanner
-            tone="warning"
-            message="Voice capture isn’t available in this browser. Please type your details below — Chrome on Android/desktop works best."
-          />
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-950">
+            <MicOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden />
+            <p>
+              Voice input is not supported on this browser. Please type your details.
+            </p>
+          </div>
         )}
 
         <div className="space-y-4">
