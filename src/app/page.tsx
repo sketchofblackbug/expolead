@@ -55,7 +55,7 @@ export default function HomePage() {
             </div>
             <div className="mt-8 flex items-center gap-2 text-sm text-slate-500">
               <ShieldCheck className="h-4 w-4 text-accent-600" />
-              Built for mobile. Ready for Supabase. Auth coming next.
+              Built for mobile booths — voice capture, QR codes, and secured admin.
             </div>
           </div>
 

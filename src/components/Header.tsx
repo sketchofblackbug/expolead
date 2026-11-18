@@ -27,8 +27,8 @@ export function Header() {
   if (isLeadPage) {
     return (
       <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2">
+        <div className="mx-auto flex h-12 max-w-lg items-center justify-between px-3 sm:h-14 sm:px-6">
+          <Link href="/" className="flex min-h-10 items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-800 text-white">
               <QrCode className="h-4 w-4" aria-hidden />
             </span>

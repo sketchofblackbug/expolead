@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Header } from "@/components/Header";
+import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -78,12 +79,7 @@ export default function RootLayout({
         <div className="flex min-h-dvh flex-col">
           <Header />
           <main className="flex-1">{children}</main>
-          <footer className="border-t border-slate-200/80 bg-white/70">
-            <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-5 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <p>© {new Date().getFullYear()} ExpoLead</p>
-              <p>Scan. Speak. Capture leads at the booth.</p>
-            </div>
-          </footer>
+          <SiteFooter />
         </div>
       </body>
     </html>

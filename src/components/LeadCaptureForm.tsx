@@ -41,7 +41,7 @@ const initialForm: LeadCaptureFormState = {
   notes: "",
 };
 
-const SUCCESS_RESET_MS = 2800;
+const SUCCESS_RESET_MS = 4500;
 /** Stop listening after this much quiet time */
 const SILENCE_STOP_MS = 3500;
 /** Hard cap so a session never runs forever */
@@ -410,7 +410,11 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
 
   if (mode === "success") {
     return (
-      <div className="surface-card relative overflow-hidden px-6 py-10 text-center sm:px-8">
+      <div
+        className="surface-card relative overflow-hidden px-5 py-10 text-center sm:px-8 sm:py-12"
+        role="status"
+        aria-live="polite"
+      >
         <div className="confetti-burst" aria-hidden>
           {CONFETTI_COLORS.map((color, index) => (
             <span
@@ -427,22 +431,27 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
           ))}
         </div>
 
-        <div className="success-pop relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-500/10 text-accent-600">
-          <CheckCircle2 className="h-9 w-9" />
+        <div className="success-pop relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-accent-500 text-white shadow-glow">
+          <CheckCircle2 className="h-11 w-11" strokeWidth={2.25} />
         </div>
-        <h2 className="relative text-xl font-semibold text-brand-950">
+        <p className="relative text-xs font-semibold uppercase tracking-[0.18em] text-accent-600">
+          Success
+        </p>
+        <h2 className="relative mt-2 text-balance text-2xl font-semibold tracking-tight text-brand-950 sm:text-3xl">
           Lead saved successfully!
         </h2>
-        <p className="relative mt-2 text-sm text-slate-600">
-          The exhibitor will contact you.
+        <p className="relative mx-auto mt-3 max-w-sm text-pretty text-base leading-relaxed text-slate-600">
+          Thanks for stopping by. The exhibitor will contact you soon.
         </p>
-        <p className="relative mt-4 text-xs text-slate-400">Resetting form…</p>
+        <p className="relative mt-5 text-xs text-slate-400">
+          This form resets automatically in a few seconds…
+        </p>
         <button
           type="button"
           onClick={handleReset}
-          className="btn-secondary relative mt-5 min-h-11"
+          className="btn-primary relative mt-6 min-h-12 w-full max-w-xs"
         >
-          Submit another lead now
+          Submit another lead
         </button>
       </div>
     );
@@ -455,20 +464,24 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     (touchedPhone && !phoneOk ? phoneResult.message : undefined);
 
   return (
-    <form onSubmit={handleSubmit} className="surface-card overflow-hidden" noValidate>
-      <div className="border-b border-slate-100 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 px-5 py-6 text-white sm:px-7 sm:py-7">
+    <form
+      onSubmit={handleSubmit}
+      className="surface-card overflow-hidden"
+      noValidate
+    >
+      <div className="border-b border-slate-100 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 px-4 py-5 text-white sm:px-7 sm:py-7">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-200">
           Booth
         </p>
-        <h1 className="mt-1 break-all text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="mt-1 break-words text-xl font-semibold tracking-tight sm:break-all sm:text-3xl">
           {boothId}
         </h1>
-        <p className="mt-2 text-sm text-brand-100">
+        <p className="mt-2 text-sm leading-relaxed text-brand-100">
           Say your name and phone number — or type them below — then submit.
         </p>
       </div>
 
-      <div className="space-y-5 px-5 py-6 sm:space-y-6 sm:px-7 sm:py-7">
+      <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-7 sm:py-7">
         {speechSupported === null ? null : speechSupported ? (
           <div className="space-y-3">
             <div className="flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/80 px-3.5 py-3 text-xs leading-relaxed text-brand-900 sm:text-sm">
@@ -649,11 +662,22 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
           </label>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-          <label className="flex items-start gap-3 text-sm text-slate-700">
+        <div
+          className={`rounded-2xl border px-4 py-3.5 ${
+            fieldErrors.consent
+              ? "border-red-300 bg-red-50/70"
+              : "border-slate-200 bg-slate-50/80"
+          }`}
+        >
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-700">
+            Required consent
+          </p>
+          <label className="flex items-start gap-3 text-sm leading-relaxed text-slate-700">
             <input
               type="checkbox"
-              className="mt-1 h-5 w-5 shrink-0 rounded border-slate-300 text-brand-700 focus:ring-brand-500"
+              required
+              aria-required="true"
+              className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-brand-700 focus:ring-brand-500"
               checked={consent}
               onChange={(event) => {
                 setConsent(event.target.checked);
@@ -661,16 +685,20 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
               }}
             />
             <span>
-              I agree to share my name and phone number with this exhibitor for follow-up
-              about their products or services.{" "}
-              <span className="text-slate-500">
-                Your details are only used for this booth’s outreach.
-              </span>
+              <span className="font-medium text-brand-950">
+                I agree to share my name and phone number
+              </span>{" "}
+              with this exhibitor for follow-up about their products or services.
+              Your details are only used for this booth’s outreach.
             </span>
           </label>
           {fieldErrors.consent ? (
-            <p className="mt-2 text-xs text-red-600">{fieldErrors.consent}</p>
-          ) : null}
+            <p className="mt-2 text-xs font-medium text-red-600">{fieldErrors.consent}</p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              You must check this box before submitting.
+            </p>
+          )}
         </div>
 
         {error ? <ErrorBanner message={error} /> : null}

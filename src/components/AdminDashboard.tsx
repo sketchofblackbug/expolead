@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   CalendarDays,
   Download,
   Filter,
+  Inbox,
+  QrCode,
   RefreshCw,
   Search,
   Users,
@@ -196,9 +199,37 @@ export function AdminDashboard() {
           <div className="mt-4">
             <ErrorBanner message={error} />
           </div>
+        ) : leads.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-12 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-sm ring-1 ring-slate-200">
+              <Inbox className="h-6 w-6" />
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-brand-950">No leads yet</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-600">
+              When visitors scan your booth QR and submit their details, they’ll show up here
+              automatically.
+            </p>
+            <Link href="/qr-generator" className="btn-primary mt-6 inline-flex">
+              <QrCode className="h-4 w-4" />
+              Generate a booth QR
+            </Link>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-sm text-slate-500">
-            No leads match your search or booth filter.
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-10 text-center">
+            <h2 className="text-base font-semibold text-brand-950">No matching leads</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Nothing matches your current search or booth filter.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary mt-5"
+              onClick={() => {
+                setQuery("");
+                setBoothFilter("all");
+              }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <>
@@ -210,8 +241,10 @@ export function AdminDashboard() {
                   className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-base font-semibold text-brand-950">{lead.name}</h2>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold text-brand-950">
+                        {lead.name}
+                      </h2>
                       <a
                         href={`tel:${lead.phone.replace(/\s+/g, "")}`}
                         className="mt-0.5 block text-sm font-medium text-brand-700"
@@ -219,7 +252,7 @@ export function AdminDashboard() {
                         {lead.phone}
                       </a>
                     </div>
-                    <span className="shrink-0 rounded-lg bg-white px-2 py-1 font-mono text-[11px] text-slate-600 ring-1 ring-slate-200">
+                    <span className="max-w-[40%] shrink-0 truncate rounded-lg bg-white px-2 py-1 font-mono text-[11px] text-slate-600 ring-1 ring-slate-200">
                       {lead.booth_id}
                     </span>
                   </div>
@@ -228,7 +261,7 @@ export function AdminDashboard() {
                     <span className="text-slate-400">(IST)</span>
                   </p>
                   {lead.notes ? (
-                    <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100">
+                    <p className="mt-2 break-words rounded-xl bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100">
                       {lead.notes}
                     </p>
                   ) : (
