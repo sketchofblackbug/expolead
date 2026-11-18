@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
   FileText,
@@ -39,6 +39,10 @@ const initialForm: LeadCaptureFormState = {
   notes: "",
 };
 
+const SUCCESS_RESET_MS = 2800;
+
+const CONFETTI_COLORS = ["#10b981", "#1d4ed8", "#34d399", "#60a5fa", "#0f2744", "#93c5fd"];
+
 export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   const [form, setForm] = useState<LeadCaptureFormState>(initialForm);
   const [mode, setMode] = useState<CaptureMode>("idle");
@@ -53,11 +57,13 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   const [usedVoice, setUsedVoice] = useState(false);
   const [consent, setConsent] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [touchedPhone, setTouchedPhone] = useState(false);
 
   const recognitionRef = useRef<ReturnType<typeof createSpeechRecognition>>(null);
   const activeFieldRef = useRef<SpeechField | null>(null);
   const shouldRestartRef = useRef(false);
   const accumulatedRef = useRef("");
+  const successTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setSpeechSupported(isSpeechRecognitionSupported());
@@ -66,6 +72,9 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   useEffect(() => {
     return () => {
       shouldRestartRef.current = false;
+      if (successTimerRef.current) {
+        window.clearTimeout(successTimerRef.current);
+      }
       try {
         recognitionRef.current?.abort();
       } catch {
@@ -73,6 +82,11 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
       }
     };
   }, []);
+
+  const phoneResult = useMemo(() => validatePhoneNumber(form.phone), [form.phone]);
+  const nameOk = form.name.trim().length > 0;
+  const phoneOk = phoneResult.valid;
+  const canSubmit = nameOk && phoneOk && consent && mode !== "saving" && listeningField === null;
 
   const updateField = (field: keyof LeadCaptureFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -105,8 +119,15 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
       return;
     }
 
+    setTouchedPhone(true);
     const digits = normalizeSpokenPhone(transcript);
-    updateField("phone", formatPhoneInput(digits || transcript.trim()));
+    const formatted = formatPhoneInput(digits || transcript.trim());
+    updateField("phone", formatted);
+    const check = validatePhoneNumber(formatted);
+    setFieldErrors((prev) => ({
+      ...prev,
+      phone: check.valid ? undefined : check.message,
+    }));
   };
 
   const applyAutoTranscript = (chunk: string) => {
@@ -118,18 +139,22 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     const parsed = parseSpokenLead(accumulatedRef.current);
     setForm((prev) => ({
       ...prev,
-      // Always prefer freshly extracted name (never keep filler phrases)
       name: parsed.name || prev.name,
       phone: parsed.phone || prev.phone,
       notes: parsed.notes || prev.notes,
     }));
 
-    const phoneCheck = parsed.phone ? validatePhoneNumber(parsed.phone) : null;
-    setFieldErrors((prev) => ({
-      ...prev,
-      name: parsed.name ? undefined : prev.name,
-      phone: phoneCheck && !phoneCheck.valid ? phoneCheck.message : undefined,
-    }));
+    if (parsed.phone) {
+      setTouchedPhone(true);
+      const phoneCheck = validatePhoneNumber(parsed.phone);
+      setFieldErrors((prev) => ({
+        ...prev,
+        name: parsed.name ? undefined : prev.name,
+        phone: phoneCheck.valid ? undefined : phoneCheck.message,
+      }));
+    } else if (parsed.name) {
+      setFieldErrors((prev) => ({ ...prev, name: undefined }));
+    }
   };
 
   const startListening = (field: SpeechField) => {
@@ -185,7 +210,6 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
 
     recognition.onerror = (event) => {
       if (event.error === "aborted") return;
-      // In continuous mode, no-speech is common between phrases — keep listening
       if (continuous && event.error === "no-speech") return;
 
       const message = speechErrorMessage(event.error);
@@ -199,7 +223,6 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     };
 
     recognition.onend = () => {
-      // Chrome often ends continuous sessions after a pause — restart while active
       if (shouldRestartRef.current && activeFieldRef.current === field) {
         try {
           recognition.start();
@@ -246,9 +269,9 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
       nextErrors.name = "Please enter only your name — remove greetings or extra words.";
     }
 
-    const phoneResult = validatePhoneNumber(form.phone);
-    if (!phoneResult.valid) {
-      nextErrors.phone = phoneResult.message ?? "Please enter a valid phone number.";
+    const result = validatePhoneNumber(form.phone);
+    if (!result.valid) {
+      nextErrors.phone = result.message ?? "Please enter a valid 10-digit mobile number.";
     }
 
     if (!consent) {
@@ -256,7 +279,21 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     }
 
     setFieldErrors(nextErrors);
+    setTouchedPhone(true);
     return Object.keys(nextErrors).length === 0;
+  };
+
+  const resetFormState = () => {
+    setForm(initialForm);
+    setFieldErrors({});
+    setError(null);
+    setUsedVoice(false);
+    setConsent(false);
+    setTouchedPhone(false);
+    setInterimText("");
+    setLiveTranscript("");
+    accumulatedRef.current = "";
+    setMode("idle");
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -270,67 +307,104 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
       return;
     }
 
-    const phoneResult = validatePhoneNumber(form.phone);
+    const result = validatePhoneNumber(form.phone);
 
     try {
       setMode("saving");
       await saveLead({
         booth_id: boothId,
         name: form.name.trim(),
-        phone: phoneResult.normalized,
+        phone: result.normalized,
         notes: form.notes.trim() || null,
         source: usedVoice ? "voice" : "manual",
       });
-      setMode("success");
+
+      // Clear only after success
       setForm(initialForm);
       setFieldErrors({});
       setUsedVoice(false);
       setConsent(false);
+      setTouchedPhone(false);
       setInterimText("");
       setLiveTranscript("");
       accumulatedRef.current = "";
+      setMode("success");
+
+      if (successTimerRef.current) {
+        window.clearTimeout(successTimerRef.current);
+      }
+      successTimerRef.current = window.setTimeout(() => {
+        setMode("idle");
+      }, SUCCESS_RESET_MS);
     } catch (err) {
+      // Keep all form data so the visitor can retry
       setMode("error");
       setError(
-        friendlySaveError(err instanceof Error ? err.message : "Unable to save your details.")
+        friendlySaveError(
+          err instanceof Error
+            ? err.message
+            : "We couldn’t save your details. Please try again."
+        )
       );
     }
   };
 
   const handleReset = () => {
     stopListening();
-    setForm(initialForm);
-    setFieldErrors({});
-    setError(null);
-    setUsedVoice(false);
-    setConsent(false);
-    setInterimText("");
-    setLiveTranscript("");
-    accumulatedRef.current = "";
-    setMode("idle");
+    if (successTimerRef.current) {
+      window.clearTimeout(successTimerRef.current);
+    }
+    resetFormState();
   };
 
   if (mode === "success") {
     return (
-      <div className="surface-card px-6 py-10 text-center sm:px-8">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-500/10 text-accent-600">
-          <CheckCircle2 className="h-8 w-8" />
+      <div className="surface-card relative overflow-hidden px-6 py-10 text-center sm:px-8">
+        <div className="confetti-burst" aria-hidden>
+          {CONFETTI_COLORS.map((color, index) => (
+            <span
+              key={`${color}-${index}`}
+              className="confetti-piece"
+              style={{
+                backgroundColor: color,
+                marginLeft: `${(index - 2.5) * 18}px`,
+                animationDelay: `${index * 45}ms`,
+                width: index % 2 === 0 ? 7 : 9,
+                height: index % 2 === 0 ? 11 : 8,
+              }}
+            />
+          ))}
         </div>
-        <h2 className="text-xl font-semibold text-brand-950">You’re all set</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Thanks! This booth has your details and can follow up with you.
+
+        <div className="success-pop relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-500/10 text-accent-600">
+          <CheckCircle2 className="h-9 w-9" />
+        </div>
+        <h2 className="relative text-xl font-semibold text-brand-950">
+          Lead saved successfully!
+        </h2>
+        <p className="relative mt-2 text-sm text-slate-600">
+          The exhibitor will contact you.
         </p>
-        <button type="button" onClick={handleReset} className="btn-primary mt-6 min-h-12 w-full sm:w-auto">
-          Submit another lead
+        <p className="relative mt-4 text-xs text-slate-400">Resetting form…</p>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="btn-secondary relative mt-5 min-h-11"
+        >
+          Submit another lead now
         </button>
       </div>
     );
   }
 
   const isListening = listeningField !== null;
+  const showPhoneError = Boolean(fieldErrors.phone) || (touchedPhone && !phoneOk && form.phone.trim().length > 0);
+  const phoneErrorText =
+    fieldErrors.phone ||
+    (touchedPhone && !phoneOk ? phoneResult.message : undefined);
 
   return (
-    <form onSubmit={handleSubmit} className="surface-card overflow-hidden">
+    <form onSubmit={handleSubmit} className="surface-card overflow-hidden" noValidate>
       <div className="border-b border-slate-100 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 px-5 py-6 text-white sm:px-7 sm:py-7">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-200">
           Booth
@@ -450,28 +524,29 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
               Phone number
             </span>
             <input
-              className={`input-field min-h-12 ${fieldErrors.phone ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+              className={`input-field min-h-12 ${showPhoneError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : phoneOk ? "border-accent-500/50 focus:border-accent-500 focus:ring-emerald-100" : ""}`}
               name="phone"
               type="tel"
-              inputMode="tel"
+              inputMode="numeric"
               autoComplete="tel"
               placeholder="98765 43210"
               value={form.phone}
+              aria-invalid={showPhoneError}
               onChange={(event) => {
+                setTouchedPhone(true);
                 const formatted = formatPhoneInput(event.target.value);
                 updateField("phone", formatted);
-                if (formatted.replace(/\D/g, "").length > 0) {
-                  const result = validatePhoneNumber(formatted);
-                  setFieldErrors((prev) => ({
-                    ...prev,
-                    phone: result.valid ? undefined : result.message,
-                  }));
-                }
+                const result = validatePhoneNumber(formatted);
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  phone: formatted && !result.valid ? result.message : undefined,
+                }));
               }}
               onBlur={() => {
+                setTouchedPhone(true);
                 const result = validatePhoneNumber(form.phone);
                 if (result.valid) {
-                  updateField("phone", result.normalized);
+                  updateField("phone", formatPhoneInput(result.normalized));
                   setFieldErrors((prev) => ({ ...prev, phone: undefined }));
                 } else if (form.phone.trim()) {
                   setFieldErrors((prev) => ({
@@ -482,10 +557,14 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
               }}
               required
             />
-            {fieldErrors.phone ? (
-              <p className="text-xs text-red-600">{fieldErrors.phone}</p>
+            {showPhoneError && phoneErrorText ? (
+              <p className="text-xs font-medium text-red-600">{phoneErrorText}</p>
+            ) : phoneOk ? (
+              <p className="text-xs font-medium text-accent-600">Looks good — 10-digit Indian mobile</p>
             ) : (
-              <p className="text-xs text-slate-500">Must be a full 10-digit Indian mobile (starts with 6–9)</p>
+              <p className="text-xs text-slate-500">
+                10 digits starting with 6–9 · spaces, dashes, and +91 are removed automatically
+              </p>
             )}
           </label>
 
@@ -535,17 +614,23 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
         <button
           type="submit"
           className="btn-primary min-h-12 w-full py-3.5 text-base touch-manipulation"
-          disabled={mode === "saving" || isListening}
+          disabled={!canSubmit}
         >
           {mode === "saving" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Submitting…
+              Saving…
             </>
           ) : (
             "Submit Lead"
           )}
         </button>
+
+        {!canSubmit && mode !== "saving" ? (
+          <p className="text-center text-xs text-slate-500">
+            Submit unlocks when name, a valid 10-digit mobile, and consent are complete.
+          </p>
+        ) : null}
 
         <p className="flex items-start justify-center gap-2 text-center text-xs leading-relaxed text-slate-500">
           <Waves className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />

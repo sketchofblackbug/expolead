@@ -29,53 +29,38 @@ function looksLikeIndianMobile(digitsOnly: string): boolean {
   return false;
 }
 
-/**
- * Live input formatter — prefers Indian mobile spacing: `98765 43210` or `+91 98765 43210`.
- */
-export function formatPhoneInput(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return "";
+/** Strip spaces, dashes, parentheses, and leading +91 / 91 / 0 → local digits only. */
+export function stripToIndianLocalDigits(input: string): string {
+  let digits = input.replace(/\D/g, "");
 
-  const hasPlus = trimmed.startsWith("+");
-  const digits = trimmed.replace(/\D/g, "");
-
-  // +91… or 91…
-  if ((hasPlus && digits.startsWith("91")) || (!hasPlus && digits.startsWith("91") && digits.length >= 3)) {
-    const rest = digits.startsWith("91") ? digits.slice(2) : digits;
-    const local = rest.slice(0, 10);
-    if (!local) return "+91 ";
-    if (local.length <= 5) return `+91 ${local}`;
-    return `+91 ${local.slice(0, 5)} ${local.slice(5)}`;
+  if (digits.startsWith("91") && digits.length >= 12) {
+    digits = digits.slice(2);
+  } else if (digits.startsWith("0") && digits.length >= 11) {
+    digits = digits.slice(1);
   }
 
-  if (hasPlus && !digits.startsWith("91")) {
-    return `+${digits.slice(0, 15)}`;
+  // If user typed +91 and then the number gradually
+  if (digits.startsWith("91") && digits.length > 10) {
+    digits = digits.slice(2);
   }
 
-  // 0XXXXXXXXXX while typing
-  if (digits.startsWith("0") && digits.length <= 11) {
-    const local = digits.slice(1, 11);
-    if (!local) return "0";
-    if (local.length <= 5) return `0${local}`;
-    return `0${local.slice(0, 5)} ${local.slice(5)}`;
-  }
-
-  // Plain local Indian mobile
-  if (/^[6-9]/.test(digits) && digits.length <= 10) {
-    if (digits.length <= 5) return digits;
-    return `${digits.slice(0, 5)} ${digits.slice(5)}`;
-  }
-
-  if (digits.length <= 15) {
-    return digits;
-  }
-
-  return digits.slice(0, 15);
+  return digits.slice(0, 10);
 }
 
 /**
- * Strict validation: Indian mobiles must be a full 10-digit number (6–9…).
- * Incomplete Indian-looking numbers are rejected (no 7-digit loophole).
+ * Live input formatter for Indian mobiles.
+ * Strips spaces, dashes, and +91 automatically; shows `98765 43210`.
+ */
+export function formatPhoneInput(input: string): string {
+  const local = stripToIndianLocalDigits(input);
+  if (!local) return "";
+  if (local.length <= 5) return local;
+  return `${local.slice(0, 5)} ${local.slice(5)}`;
+}
+
+/**
+ * Strict: valid 10-digit Indian mobile starting with 6–9 only.
+ * Spaces, dashes, and +91 are stripped before checking.
  */
 export function validatePhoneNumber(input: string): PhoneValidationResult {
   const raw = input.trim();
@@ -83,20 +68,14 @@ export function validatePhoneNumber(input: string): PhoneValidationResult {
     return {
       valid: false,
       normalized: "",
-      isIndian: false,
-      message: "Please enter a phone number.",
+      isIndian: true,
+      message: "Please enter your 10-digit mobile number.",
     };
   }
 
-  const digitsOnly = raw.replace(/\D/g, "");
+  const local = stripToIndianLocalDigits(raw);
 
-  // Full Indian mobile with optional +91 / 91 / 0
-  if (
-    (/^[6-9]\d{9}$/.test(digitsOnly) && digitsOnly.length === 10) ||
-    (/^91[6-9]\d{9}$/.test(digitsOnly) && digitsOnly.length === 12) ||
-    (/^0[6-9]\d{9}$/.test(digitsOnly) && digitsOnly.length === 11)
-  ) {
-    const local = digitsOnly.slice(-10);
+  if (/^[6-9]\d{9}$/.test(local)) {
     return {
       valid: true,
       normalized: `+91 ${local.slice(0, 5)} ${local.slice(5)}`,
@@ -104,37 +83,38 @@ export function validatePhoneNumber(input: string): PhoneValidationResult {
     };
   }
 
-  // Incomplete Indian-looking number
-  if (looksLikeIndianMobile(digitsOnly)) {
-    const localLen = digitsOnly.startsWith("91")
-      ? digitsOnly.length - 2
-      : digitsOnly.startsWith("0")
-        ? digitsOnly.length - 1
-        : digitsOnly.length;
-
+  if (local.length > 0 && local.length < 10) {
     return {
       valid: false,
-      normalized: raw,
+      normalized: formatPhoneInput(local),
       isIndian: true,
-      message: `Indian mobile numbers need 10 digits. You entered ${Math.max(localLen, 0)} — please complete it.`,
+      message: `Enter all 10 digits. You have ${local.length} so far.`,
     };
   }
 
-  // Explicit international with + and non-India country code (E.164-ish)
-  if (raw.startsWith("+") && !digitsOnly.startsWith("91") && digitsOnly.length >= 10 && digitsOnly.length <= 15) {
+  if (local.length === 10 && !/^[6-9]/.test(local)) {
     return {
-      valid: true,
-      normalized: `+${digitsOnly}`,
-      isIndian: false,
+      valid: false,
+      normalized: formatPhoneInput(local),
+      isIndian: true,
+      message: "Indian mobile numbers must start with 6, 7, 8, or 9.",
+    };
+  }
+
+  if (looksLikeIndianMobile(raw.replace(/\D/g, "")) || local.length > 0) {
+    return {
+      valid: false,
+      normalized: formatPhoneInput(local),
+      isIndian: true,
+      message: "Enter a valid 10-digit Indian mobile number (starts with 6–9).",
     };
   }
 
   return {
     valid: false,
     normalized: raw,
-    isIndian: false,
-    message:
-      "Enter a valid 10-digit Indian mobile (starting 6–9), or an international number with +country code.",
+    isIndian: true,
+    message: "Enter a valid 10-digit Indian mobile number (starts with 6–9).",
   };
 }
 
