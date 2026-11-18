@@ -91,7 +91,7 @@ export function AdminDashboard() {
           <p className="mt-1 text-sm text-slate-600">
             Review booth captures ·{" "}
             <span className="font-medium text-slate-800">
-              {dataSource === "supabase" ? "Live from Supabase" : "Demo data"}
+              {dataSource === "supabase" ? "Live from Supabase" : "Demo / local data"}
             </span>
           </p>
         </div>

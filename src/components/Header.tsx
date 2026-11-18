@@ -69,11 +69,11 @@ export function Header() {
             </Link>
           ))}
           <Link
-            href="/admin"
+            href="/login"
             className="ml-2 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-800 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-900"
           >
             <LayoutDashboard className="h-4 w-4" aria-hidden />
-            Dashboard
+            Admin
           </Link>
         </nav>
 

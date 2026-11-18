@@ -1,25 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 export type TypedSupabaseClient = SupabaseClient<Database>;
-
-let browserClient: TypedSupabaseClient | null = null;
-
-function getSupabaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-  }
-  return url;
-}
-
-function getSupabaseAnonKey(): string {
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!key) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  }
-  return key;
-}
 
 /** True when public Supabase env vars are present. */
 export function isSupabaseConfigured(): boolean {
@@ -31,33 +14,28 @@ export function isSupabaseConfigured(): boolean {
 
 /**
  * Shared Supabase client for browser and server (anon key).
- * - Browser: reuses a singleton to avoid multiple GoTrue clients
- * - Server: creates a fresh client per call (safe for RSC / route handlers)
+ * - Browser: cookie-backed SSR client (auth + data)
+ * - Server modules that aren't request-scoped: ephemeral anon client
  */
 export function createSupabaseClient(): TypedSupabaseClient {
-  const url = getSupabaseUrl();
-  const anonKey = getSupabaseAnonKey();
+  if (!isSupabaseConfigured()) {
+    throw new Error("Supabase is not configured");
+  }
 
-  if (typeof window === "undefined") {
-    return createClient<Database>(url, anonKey, {
+  if (typeof window !== "undefined") {
+    return createBrowserSupabaseClient();
+  }
+
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
-    });
-  }
-
-  if (!browserClient) {
-    browserClient = createClient<Database>(url, anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    });
-  }
-
-  return browserClient;
+    }
+  );
 }
 
 /**
@@ -65,11 +43,11 @@ export function createSupabaseClient(): TypedSupabaseClient {
  * Never import this into client components — it bypasses RLS.
  */
 export function createSupabaseServiceClient(): TypedSupabaseClient {
-  const url = getSupabaseUrl();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!serviceRoleKey) {
-    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceRoleKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
 
   if (typeof window !== "undefined") {

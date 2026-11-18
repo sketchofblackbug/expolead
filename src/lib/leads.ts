@@ -107,7 +107,7 @@ export async function fetchLeads(): Promise<{
   if (error) {
     throw new Error(
       error.message.includes("permission") || error.code === "42501"
-        ? "Unable to read leads. Run supabase/migrate-public-select.sql in the SQL Editor."
+        ? "Unable to read leads. Sign in as an admin, or run supabase/migrate-auth-select.sql if RLS is misconfigured."
         : error.message
     );
   }

@@ -26,14 +26,13 @@ create policy "Anyone can insert leads"
   to anon, authenticated
   with check (true);
 
--- TEMP: public read for admin dashboard (replace with auth later)
-create policy "Anyone can select leads"
+-- Admin dashboard: only signed-in users can read
+create policy "Authenticated users can select leads"
   on public.leads
   for select
-  to anon, authenticated
+  to authenticated
   using (true);
 
--- Keep write mutations authenticated-only for now
 create policy "Authenticated users can update leads"
   on public.leads
   for update

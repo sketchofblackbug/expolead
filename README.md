@@ -9,7 +9,7 @@ Visitors scan a booth QR → open `/lead/[boothId]` → speak (or type) name & p
 - Voice capture (Web Speech API) with continuous “Start Voice Capture” mode
 - Separate Speak Name / Speak Phone buttons (optional)
 - Indian phone auto-formatting + validation
-- Public admin dashboard with search, booth filter, and CSV export
+- Protected admin dashboard (Supabase Auth) with search, booth filter, and CSV export
 - Booth QR generator (PNG download + copy link)
 - Supabase persistence with local demo fallback
 
@@ -20,7 +20,8 @@ Visitors scan a booth QR → open `/lead/[boothId]` → speak (or type) name & p
 | `/` | Product home |
 | `/lead/[boothId]` | Visitor capture page (QR target) |
 | `/qr-generator` | Printable booth QR codes |
-| `/admin` | Leads dashboard |
+| `/login` | Admin sign-in (email + password) |
+| `/admin` | Leads dashboard (requires login) |
 
 ## Quick start
 
@@ -56,16 +57,27 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ### RLS model (current)
 
 - Anyone can **INSERT** leads (public capture)
-- Anyone can **SELECT** leads (temporary, so `/admin` works without login)
-- **UPDATE / DELETE** remain authenticated-only
+- Only **authenticated** users can **SELECT** / **UPDATE** / **DELETE**
 
-When you add login later, replace the public SELECT policy with an authenticated-only policy.
+If you previously allowed public SELECT, run `supabase/migrate-auth-select.sql`.
 
 Optional server key (never expose to the browser):
 
 ```bash
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 ```
+
+## Create the first admin user
+
+1. Open your project in the [Supabase Dashboard](https://supabase.com/dashboard).
+2. Go to **Authentication → Users**.
+3. Click **Add user** → **Create new user**.
+4. Enter an email + password (enable **Auto Confirm User** so you can sign in immediately).
+5. Save the user.
+6. Open `/login` on your ExpoLead site and sign in with that email/password.
+7. You’ll be redirected to `/admin`. Use **Log out** in the admin header when finished.
+
+> Tip: keep this account private — anyone with these credentials can view all captured leads.
 
 ## Generate QR codes
 
@@ -127,8 +139,9 @@ src/
   lib/                 # Supabase, phone/speech helpers, CSV
   types/               # Shared TypeScript types
 supabase/
-  schema.sql           # Table + RLS
-  migrate-public-select.sql
+  schema.sql                 # Table + RLS
+  migrate-auth-select.sql    # Lock SELECT to authenticated users
+  migrate-public-select.sql  # Legacy public-read helper
 ```
 
 ## License
