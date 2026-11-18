@@ -8,6 +8,7 @@ import { useState } from "react";
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/lead/demo-booth", label: "Try capture" },
+  { href: "/qr-generator", label: "QR generator" },
   { href: "/admin", label: "Admin" },
 ];
 

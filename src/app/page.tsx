@@ -45,12 +45,12 @@ export default function HomePage() {
               clipboards or business-card piles.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/lead/demo-booth" className="btn-primary">
-                Try the capture page
+              <Link href="/qr-generator" className="btn-primary">
+                Generate booth QR
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/admin" className="btn-secondary">
-                View admin dashboard
+              <Link href="/lead/demo-booth" className="btn-secondary">
+                Try the capture page
               </Link>
             </div>
             <div className="mt-8 flex items-center gap-2 text-sm text-slate-500">

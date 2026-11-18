@@ -18,6 +18,7 @@ Visitors scan a booth QR code → open `/lead/[boothId]` → speak (or type) the
 | --- | --- |
 | `/` | Product home |
 | `/lead/[boothId]` | QR landing + voice/typed capture |
+| `/qr-generator` | Printable booth QR codes |
 | `/admin` | Lead dashboard (auth later) |
 
 ## Local setup
