@@ -10,7 +10,23 @@ export function getAppBaseUrl(): string {
     return window.location.origin;
   }
 
-  return "http://localhost:3000";
+  return "";
+}
+
+/** True when a URL is safe to encode into a scannable booth QR. */
+export function isScannableBaseUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    // localhost QR codes do not open on visitor phones
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Slug suitable for /lead/[boothId] — keeps letters, numbers, dash, underscore. */
@@ -25,5 +41,6 @@ export function normalizeBoothId(input: string): string {
 
 export function buildLeadCaptureUrl(boothId: string, baseUrl = getAppBaseUrl()): string {
   const id = normalizeBoothId(boothId);
-  return `${baseUrl}/lead/${encodeURIComponent(id)}`;
+  if (!baseUrl || !id) return "";
+  return `${baseUrl.replace(/\/$/, "")}/lead/${encodeURIComponent(id)}`;
 }

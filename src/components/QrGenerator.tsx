@@ -9,26 +9,42 @@ import {
   Link2,
   Printer,
   QrCode,
+  AlertTriangle,
 } from "lucide-react";
-import { buildLeadCaptureUrl, normalizeBoothId } from "@/lib/app-url";
+import {
+  buildLeadCaptureUrl,
+  isScannableBaseUrl,
+  normalizeBoothId,
+} from "@/lib/app-url";
 
 export function QrGenerator() {
   const [boothInput, setBoothInput] = useState("demo-booth");
   const [copied, setCopied] = useState(false);
-  const [baseUrl, setBaseUrl] = useState("http://localhost:3000");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [ready, setReady] = useState(false);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setBaseUrl(
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || window.location.origin
-    );
+    // Always prefer the site the exhibitor is viewing — never bake localhost into phone QRs
+    const origin = window.location.origin;
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
+
+    if (isScannableBaseUrl(origin)) {
+      setBaseUrl(origin);
+    } else if (isScannableBaseUrl(envUrl)) {
+      setBaseUrl(envUrl);
+    } else {
+      setBaseUrl(origin); // local dev preview only
+    }
+    setReady(true);
   }, []);
 
   const boothId = useMemo(() => normalizeBoothId(boothInput), [boothInput]);
   const leadUrl = useMemo(
-    () => (boothId ? buildLeadCaptureUrl(boothId, baseUrl) : ""),
+    () => (boothId && baseUrl ? buildLeadCaptureUrl(boothId, baseUrl) : ""),
     [boothId, baseUrl]
   );
+  const canScanOnPhone = isScannableBaseUrl(baseUrl);
 
   const handleCopy = async () => {
     if (!leadUrl) return;
@@ -37,7 +53,6 @@ export function QrGenerator() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const textarea = document.createElement("textarea");
       textarea.value = leadUrl;
       document.body.appendChild(textarea);
@@ -50,12 +65,12 @@ export function QrGenerator() {
   };
 
   const handleDownload = () => {
-    if (!boothId) return;
+    if (!boothId || !canScanOnPhone) return;
     const canvas = canvasWrapRef.current?.querySelector("canvas");
     if (!canvas) return;
 
     const exportCanvas = document.createElement("canvas");
-    const padding = 32;
+    const padding = 40;
     const size = canvas.width;
     exportCanvas.width = size + padding * 2;
     exportCanvas.height = size + padding * 2;
@@ -110,21 +125,38 @@ export function QrGenerator() {
           </p>
         </label>
 
-        {!boothId ? (
+        {!ready ? (
+          <div className="mt-8 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-16 text-center text-sm text-slate-500">
+            Preparing scannable link…
+          </div>
+        ) : !boothId ? (
           <div className="mt-8 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-16 text-center text-sm text-slate-500">
             Enter a booth ID to generate your QR code.
+          </div>
+        ) : !canScanOnPhone ? (
+          <div className="mt-8 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-semibold">This QR won’t open on a phone yet</p>
+              <p className="mt-1">
+                You’re on a local address (<code>{baseUrl || "localhost"}</code>).
+                Open this page on your live site (e.g.{" "}
+                <code>https://expolead-nu.vercel.app/qr-generator</code>) to
+                generate a phone-scannable QR.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="mt-8 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
             <div
               ref={canvasWrapRef}
-              className="mx-auto flex items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-soft"
+              className="mx-auto flex items-center justify-center rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"
             >
               <QRCodeCanvas
                 value={leadUrl}
-                size={220}
-                level="M"
-                includeMargin={false}
+                size={256}
+                level="H"
+                includeMargin
                 bgColor="#ffffff"
                 fgColor="#0f2744"
               />
@@ -133,10 +165,13 @@ export function QrGenerator() {
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Capture link
+                  Capture link (encoded in QR)
                 </p>
                 <p className="mt-1 break-all rounded-xl bg-slate-50 px-3 py-2.5 font-mono text-xs text-brand-900 ring-1 ring-slate-200 sm:text-sm">
                   {leadUrl}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  Scan with your phone camera — it should open this link directly.
                 </p>
               </div>
 
@@ -180,9 +215,9 @@ export function QrGenerator() {
           <div>
             <p className="font-semibold">How to use</p>
             <ol className="mt-2 list-decimal space-y-1 pl-4 text-brand-800/90">
-              <li>Enter your booth ID and download the PNG.</li>
-              <li>Print it at a large size and place it at eye level.</li>
-              <li>Visitors scan → land on the capture page → speak name & phone.</li>
+              <li>Generate the QR on your live HTTPS site (not localhost).</li>
+              <li>Download the PNG, print large, place at eye level.</li>
+              <li>Visitors scan with their camera → capture page opens → speak details.</li>
             </ol>
           </div>
         </div>

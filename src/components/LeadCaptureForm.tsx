@@ -118,10 +118,18 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     const parsed = parseSpokenLead(accumulatedRef.current);
     setForm((prev) => ({
       ...prev,
+      // Always prefer freshly extracted name (never keep filler phrases)
       name: parsed.name || prev.name,
       phone: parsed.phone || prev.phone,
+      notes: parsed.notes || prev.notes,
     }));
-    setFieldErrors((prev) => ({ ...prev, name: undefined, phone: undefined }));
+
+    const phoneCheck = parsed.phone ? validatePhoneNumber(parsed.phone) : null;
+    setFieldErrors((prev) => ({
+      ...prev,
+      name: parsed.name ? undefined : prev.name,
+      phone: phoneCheck && !phoneCheck.valid ? phoneCheck.message : undefined,
+    }));
   };
 
   const startListening = (field: SpeechField) => {
@@ -225,9 +233,17 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
 
   const validateForm = (): boolean => {
     const nextErrors: { name?: string; phone?: string; consent?: string } = {};
+    const cleanedName = form.name.trim();
 
-    if (!form.name.trim()) {
+    if (!cleanedName) {
       nextErrors.name = "Please enter your name.";
+    } else if (cleanedName.split(/\s+/).length > 5) {
+      nextErrors.name = "Please enter only your name (not a full sentence).";
+    } else if (
+      /^(hi|hello|hey|my name is|i am|i'm)\b/i.test(cleanedName) ||
+      /\b(phone|number|mobile)\b/i.test(cleanedName)
+    ) {
+      nextErrors.name = "Please enter only your name — remove greetings or extra words.";
     }
 
     const phoneResult = validatePhoneNumber(form.phone);
@@ -415,11 +431,17 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
               placeholder="Your full name"
               value={form.name}
               onChange={(event) => updateField("name", event.target.value)}
+              onBlur={() => {
+                const cleaned = cleanSpokenName(form.name);
+                if (cleaned && cleaned !== form.name) updateField("name", cleaned);
+              }}
               required
             />
             {fieldErrors.name ? (
               <p className="text-xs text-red-600">{fieldErrors.name}</p>
-            ) : null}
+            ) : (
+              <p className="text-xs text-slate-500">Name only — greetings are removed automatically</p>
+            )}
           </label>
 
           <label className="block space-y-1.5">
@@ -435,17 +457,35 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
               autoComplete="tel"
               placeholder="98765 43210"
               value={form.phone}
-              onChange={(event) => updateField("phone", formatPhoneInput(event.target.value))}
+              onChange={(event) => {
+                const formatted = formatPhoneInput(event.target.value);
+                updateField("phone", formatted);
+                if (formatted.replace(/\D/g, "").length > 0) {
+                  const result = validatePhoneNumber(formatted);
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    phone: result.valid ? undefined : result.message,
+                  }));
+                }
+              }}
               onBlur={() => {
                 const result = validatePhoneNumber(form.phone);
-                if (result.valid) updateField("phone", result.normalized);
+                if (result.valid) {
+                  updateField("phone", result.normalized);
+                  setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                } else if (form.phone.trim()) {
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    phone: result.message,
+                  }));
+                }
               }}
               required
             />
             {fieldErrors.phone ? (
               <p className="text-xs text-red-600">{fieldErrors.phone}</p>
             ) : (
-              <p className="text-xs text-slate-500">Auto-formats Indian mobiles · other numbers OK</p>
+              <p className="text-xs text-slate-500">Must be a full 10-digit Indian mobile (starts with 6–9)</p>
             )}
           </label>
 
