@@ -64,8 +64,9 @@ body {
 .listening-pulse::before {
   content: "";
   position: absolute;
-  inset: -8px;
-  border-radius: 9999px;
-  border: 2px solid rgb(16 185 129 / 0.5);
+  inset: -6px;
+  border-radius: 1.15rem;
+  border: 2px solid rgb(16 185 129 / 0.45);
   animation: pulse-ring 1.6s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  pointer-events: none;
 }

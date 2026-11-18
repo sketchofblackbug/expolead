@@ -18,11 +18,9 @@ export default function LeadCapturePage({ params }: LeadPageProps) {
   const boothId = decodeURIComponent(params.boothId);
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto max-w-lg px-4 py-6 sm:px-6 sm:py-10">
       <LeadCaptureForm boothId={boothId} />
-      <p className="mt-5 text-center text-xs text-slate-500">
-        Powered by ExpoLead · Your information is shared with this booth only.
-      </p>
+      <p className="mt-4 text-center text-xs text-slate-400">Powered by ExpoLead</p>
     </div>
   );
 }

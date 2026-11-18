@@ -23,10 +23,12 @@ export interface LeadInsert {
 export interface LeadCaptureFormState {
   name: string;
   phone: string;
-  email: string;
+  notes: string;
 }
 
-export type CaptureMode = "idle" | "listening" | "review" | "saving" | "success" | "error";
+export type ListeningField = "name" | "phone" | null;
+
+export type CaptureMode = "idle" | "listening" | "saving" | "success" | "error";
 
 export interface BoothInfo {
   id: string;
