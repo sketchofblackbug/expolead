@@ -1,27 +1,29 @@
-export type LeadStatus = "new" | "contacted" | "qualified" | "archived";
+export type LeadSource = "voice" | "manual" | "form";
 
 export interface Lead {
   id: string;
   booth_id: string;
   name: string;
   phone: string;
+  email: string | null;
   notes: string | null;
-  status: LeadStatus;
   created_at: string;
-  updated_at: string;
+  source: string;
 }
 
 export interface LeadInsert {
   booth_id: string;
   name: string;
   phone: string;
+  email?: string | null;
   notes?: string | null;
-  status?: LeadStatus;
+  source?: string;
 }
 
 export interface LeadCaptureFormState {
   name: string;
   phone: string;
+  email: string;
 }
 
 export type CaptureMode = "idle" | "listening" | "review" | "saving" | "success" | "error";

@@ -10,14 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { fetchLeads } from "@/lib/leads";
-import type { Lead, LeadStatus } from "@/types/lead";
-
-const statusStyles: Record<LeadStatus, string> = {
-  new: "bg-sky-50 text-sky-800 ring-sky-200",
-  contacted: "bg-amber-50 text-amber-800 ring-amber-200",
-  qualified: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  archived: "bg-slate-100 text-slate-600 ring-slate-200",
-};
+import type { Lead } from "@/types/lead";
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("en-IN", {
@@ -29,11 +22,11 @@ function formatDate(value: string): string {
 
 export function AdminLeadTable() {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [source, setSource] = useState<"supabase" | "demo">("demo");
+  const [dataSource, setDataSource] = useState<"supabase" | "demo">("demo");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | LeadStatus>("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | string>("all");
 
   const load = async () => {
     try {
@@ -41,7 +34,7 @@ export function AdminLeadTable() {
       setError(null);
       const result = await fetchLeads();
       setLeads(result.leads);
-      setSource(result.source);
+      setDataSource(result.source);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load leads.");
     } finally {
@@ -53,6 +46,11 @@ export function AdminLeadTable() {
     void load();
   }, []);
 
+  const sourceOptions = useMemo(() => {
+    const unique = new Set(leads.map((lead) => lead.source));
+    return Array.from(unique).sort();
+  }, [leads]);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return leads.filter((lead) => {
@@ -60,11 +58,12 @@ export function AdminLeadTable() {
         !normalized ||
         lead.name.toLowerCase().includes(normalized) ||
         lead.phone.toLowerCase().includes(normalized) ||
+        (lead.email?.toLowerCase().includes(normalized) ?? false) ||
         lead.booth_id.toLowerCase().includes(normalized);
-      const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
-      return matchesQuery && matchesStatus;
+      const matchesSource = sourceFilter === "all" || lead.source === sourceFilter;
+      return matchesQuery && matchesSource;
     });
-  }, [leads, query, statusFilter]);
+  }, [leads, query, sourceFilter]);
 
   return (
     <div className="space-y-5">
@@ -72,13 +71,13 @@ export function AdminLeadTable() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-700">
             <ShieldAlert className="h-3.5 w-3.5" />
-            Protected soon
+            Auth required for live data
           </div>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-brand-950 sm:text-3xl">
             Leads dashboard
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Review every visitor captured across booths. Auth will be added later.
+            RLS allows only authenticated users to read leads. Auth comes next.
           </p>
         </div>
         <button type="button" onClick={() => void load()} className="btn-secondary">
@@ -96,14 +95,14 @@ export function AdminLeadTable() {
           </p>
         </div>
         <div className="surface-card px-4 py-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">New</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Voice captures</p>
           <p className="mt-2 text-2xl font-semibold text-brand-950">
-            {leads.filter((lead) => lead.status === "new").length}
+            {leads.filter((lead) => lead.source === "voice").length}
           </p>
         </div>
         <div className="surface-card px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Data source</p>
-          <p className="mt-2 text-lg font-semibold capitalize text-brand-950">{source}</p>
+          <p className="mt-2 text-lg font-semibold capitalize text-brand-950">{dataSource}</p>
         </div>
       </div>
 
@@ -113,7 +112,7 @@ export function AdminLeadTable() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               className="input-field pl-10"
-              placeholder="Search name, phone, or booth"
+              placeholder="Search name, phone, email, or booth"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -122,16 +121,15 @@ export function AdminLeadTable() {
             <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <select
               className="input-field appearance-none pl-10"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as "all" | LeadStatus)
-              }
+              value={sourceFilter}
+              onChange={(event) => setSourceFilter(event.target.value)}
             >
-              <option value="all">All statuses</option>
-              <option value="new">New</option>
-              <option value="contacted">Contacted</option>
-              <option value="qualified">Qualified</option>
-              <option value="archived">Archived</option>
+              <option value="all">All sources</option>
+              {sourceOptions.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -142,7 +140,7 @@ export function AdminLeadTable() {
             Loading leads…
           </div>
         ) : error ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {error}
           </div>
         ) : filtered.length === 0 ? (
@@ -156,8 +154,9 @@ export function AdminLeadTable() {
                 <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-3 font-semibold">Name</th>
                   <th className="px-3 py-3 font-semibold">Phone</th>
+                  <th className="px-3 py-3 font-semibold">Email</th>
                   <th className="px-3 py-3 font-semibold">Booth</th>
-                  <th className="px-3 py-3 font-semibold">Status</th>
+                  <th className="px-3 py-3 font-semibold">Source</th>
                   <th className="px-3 py-3 font-semibold">Captured</th>
                 </tr>
               </thead>
@@ -169,14 +168,13 @@ export function AdminLeadTable() {
                   >
                     <td className="px-3 py-3 font-medium text-brand-950">{lead.name}</td>
                     <td className="px-3 py-3 text-slate-700">{lead.phone}</td>
+                    <td className="px-3 py-3 text-slate-700">{lead.email ?? "—"}</td>
                     <td className="px-3 py-3 font-mono text-xs text-slate-600">
                       {lead.booth_id}
                     </td>
                     <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${statusStyles[lead.status]}`}
-                      >
-                        {lead.status}
+                      <span className="inline-flex rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold capitalize text-brand-800 ring-1 ring-inset ring-brand-100">
+                        {lead.source}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-slate-600">

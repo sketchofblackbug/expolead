@@ -1,33 +1,49 @@
--- ExpoLead leads table
-create extension if not exists "pgcrypto";
+-- ExpoLead: run this entire script in the Supabase SQL Editor
 
-create type public.lead_status as enum ('new', 'contacted', 'qualified', 'archived');
+create extension if not exists "pgcrypto";
 
 create table if not exists public.leads (
   id uuid primary key default gen_random_uuid(),
   booth_id text not null,
   name text not null,
   phone text not null,
+  email text,
   notes text,
-  status public.lead_status not null default 'new',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  source text not null default 'voice'
 );
 
 create index if not exists leads_booth_id_idx on public.leads (booth_id);
 create index if not exists leads_created_at_idx on public.leads (created_at desc);
+create index if not exists leads_source_idx on public.leads (source);
 
 alter table public.leads enable row level security;
 
--- Open insert/select for demo; tighten with auth later
-create policy "Allow public insert leads"
+-- Public capture: anyone (anon + authenticated) can insert
+create policy "Anyone can insert leads"
   on public.leads
   for insert
   to anon, authenticated
   with check (true);
 
-create policy "Allow public select leads"
+-- Dashboard: only signed-in users can read
+create policy "Authenticated users can select leads"
   on public.leads
   for select
-  to anon, authenticated
+  to authenticated
+  using (true);
+
+-- Dashboard: only signed-in users can update
+create policy "Authenticated users can update leads"
+  on public.leads
+  for update
+  to authenticated
+  using (true)
+  with check (true);
+
+-- Dashboard: only signed-in users can delete
+create policy "Authenticated users can delete leads"
+  on public.leads
+  for delete
+  to authenticated
   using (true);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
+  Mail,
   Mic,
   MicOff,
   Phone,
@@ -25,6 +26,7 @@ interface LeadCaptureFormProps {
 const initialForm: LeadCaptureFormState = {
   name: "",
   phone: "",
+  email: "",
 };
 
 export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
@@ -33,6 +35,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [usedVoice, setUsedVoice] = useState(false);
   const recognitionRef = useRef<ReturnType<typeof createSpeechRecognition>>(null);
 
   useEffect(() => {
@@ -73,8 +76,10 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
         .trim();
 
       setTranscript(result);
+      setUsedVoice(true);
       const parsed = parseSpokenLead(result);
       setForm((prev) => ({
+        ...prev,
         name: parsed.name || prev.name,
         phone: parsed.phone || prev.phone,
       }));
@@ -125,10 +130,13 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
         booth_id: boothId,
         name: form.name,
         phone: form.phone,
+        email: form.email.trim() || null,
+        source: usedVoice ? "voice" : "manual",
       });
       setMode("success");
       setForm(initialForm);
       setTranscript("");
+      setUsedVoice(false);
     } catch (err) {
       setMode("error");
       setError(err instanceof Error ? err.message : "Unable to save lead.");
@@ -140,6 +148,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     setForm(initialForm);
     setTranscript("");
     setError(null);
+    setUsedVoice(false);
     setMode("idle");
   };
 
@@ -241,6 +250,22 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
               value={form.phone}
               onChange={(event) => updateField("phone", event.target.value)}
               required
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-900">
+              <Mail className="h-4 w-4 text-brand-600" />
+              Email <span className="font-normal text-slate-400">(optional)</span>
+            </span>
+            <input
+              className="input-field"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@company.com"
+              value={form.email}
+              onChange={(event) => updateField("email", event.target.value)}
             />
           </label>
         </div>

@@ -1,14 +1,14 @@
-import type { LeadStatus } from "@/types/lead";
+export type LeadSource = "voice" | "manual" | "form" | string;
 
 export type LeadRow = {
   id: string;
   booth_id: string;
   name: string;
   phone: string;
+  email: string | null;
   notes: string | null;
-  status: LeadStatus;
   created_at: string;
-  updated_at: string;
+  source: string;
 };
 
 export type LeadInsert = {
@@ -16,10 +16,10 @@ export type LeadInsert = {
   booth_id: string;
   name: string;
   phone: string;
+  email?: string | null;
   notes?: string | null;
-  status?: LeadStatus;
   created_at?: string;
-  updated_at?: string;
+  source?: string;
 };
 
 export type LeadUpdate = {
@@ -27,10 +27,10 @@ export type LeadUpdate = {
   booth_id?: string;
   name?: string;
   phone?: string;
+  email?: string | null;
   notes?: string | null;
-  status?: LeadStatus;
   created_at?: string;
-  updated_at?: string;
+  source?: string;
 };
 
 export type Database = {
@@ -50,7 +50,7 @@ export type Database = {
       [_ in never]: never;
     };
     Enums: {
-      lead_status: LeadStatus;
+      [_ in never]: never;
     };
     CompositeTypes: {
       [_ in never]: never;

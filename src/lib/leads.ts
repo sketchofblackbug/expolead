@@ -1,4 +1,4 @@
-import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { createSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type { Lead, LeadInsert } from "@/types/lead";
 
 const DEMO_LEADS: Lead[] = [
@@ -7,82 +7,80 @@ const DEMO_LEADS: Lead[] = [
     booth_id: "booth-a1",
     name: "Priya Sharma",
     phone: "+91 98765 43210",
+    email: "priya@example.com",
     notes: null,
-    status: "new",
     created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    source: "voice",
   },
   {
     id: "demo-2",
     booth_id: "booth-a1",
     name: "James Chen",
     phone: "+1 415 555 0198",
+    email: null,
     notes: "Interested in enterprise plan",
-    status: "contacted",
     created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+    source: "manual",
   },
   {
     id: "demo-3",
     booth_id: "booth-b2",
     name: "Amelia Rossi",
     phone: "+39 333 123 4567",
+    email: "amelia@example.com",
     notes: null,
-    status: "qualified",
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+    source: "voice",
   },
 ];
 
 function createLocalLead(payload: LeadInsert): Lead {
-  const now = new Date().toISOString();
   return {
-    id: `local-${crypto.randomUUID()}`,
+    id: crypto.randomUUID(),
     booth_id: payload.booth_id,
     name: payload.name.trim(),
     phone: payload.phone.trim(),
+    email: payload.email?.trim() || null,
     notes: payload.notes ?? null,
-    status: payload.status ?? "new",
-    created_at: now,
-    updated_at: now,
+    created_at: new Date().toISOString(),
+    source: payload.source ?? "voice",
   };
 }
 
 export async function saveLead(payload: LeadInsert): Promise<Lead> {
+  const localLead = createLocalLead(payload);
+
   if (!isSupabaseConfigured()) {
-    const lead = createLocalLead(payload);
     if (typeof window !== "undefined") {
       const existing = readLocalLeads();
-      writeLocalLeads([lead, ...existing]);
+      writeLocalLeads([localLead, ...existing]);
     }
-    return lead;
+    return localLead;
   }
 
-  const supabase = createSupabaseBrowserClient();
-  if (!supabase) {
-    throw new Error("Supabase client is not available.");
-  }
+  const supabase = createSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .insert({
-      booth_id: payload.booth_id,
-      name: payload.name.trim(),
-      phone: payload.phone.trim(),
-      notes: payload.notes ?? null,
-      status: payload.status ?? "new",
-    })
-    .select()
-    .single();
+  // Insert without .select() — anon role cannot SELECT under RLS
+  const { error } = await supabase.from("leads").insert({
+    booth_id: localLead.booth_id,
+    name: localLead.name,
+    phone: localLead.phone,
+    email: localLead.email,
+    notes: localLead.notes,
+    source: localLead.source,
+  });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data as Lead;
+  return localLead;
 }
 
-export async function fetchLeads(): Promise<{ leads: Lead[]; source: "supabase" | "demo" }> {
+export async function fetchLeads(): Promise<{
+  leads: Lead[];
+  source: "supabase" | "demo";
+}> {
   if (!isSupabaseConfigured()) {
     const local = typeof window !== "undefined" ? readLocalLeads() : [];
     return {
@@ -91,18 +89,19 @@ export async function fetchLeads(): Promise<{ leads: Lead[]; source: "supabase" 
     };
   }
 
-  const supabase = createSupabaseBrowserClient();
-  if (!supabase) {
-    return { leads: DEMO_LEADS, source: "demo" };
-  }
-
+  const supabase = createSupabaseClient();
   const { data, error } = await supabase
     .from("leads")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
-    throw new Error(error.message);
+    // Expected until auth is wired — anon cannot SELECT
+    throw new Error(
+      error.message.includes("permission") || error.code === "42501"
+        ? "Sign in required to view leads (RLS). Auth will be added next."
+        : error.message
+    );
   }
 
   return { leads: (data as Lead[]) ?? [], source: "supabase" };

@@ -25,7 +25,7 @@ Visitors scan a booth QR code → open `/lead/[boothId]` → speak (or type) the
 ```bash
 cd expolead
 npm install
-cp .env.example .env.local
+cp .env.local.example .env.local
 npm run dev
 ```
 
@@ -33,11 +33,12 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Without Supabase env vars, leads are stored in `localStorage` and the admin page shows demo + local data.
 
-### Optional Supabase
+### Supabase setup
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run `supabase/schema.sql` in the SQL editor
-3. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`
+2. Paste and run `supabase/schema.sql` in the SQL Editor
+3. Copy Project URL + anon key into `.env.local`
+4. Public capture can `INSERT`; only authenticated users can `SELECT` / `UPDATE` / `DELETE`
 
 ## Scripts
 
