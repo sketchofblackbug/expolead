@@ -26,7 +26,7 @@ export interface LeadCaptureFormState {
   notes: string;
 }
 
-export type ListeningField = "name" | "phone" | null;
+export type ListeningField = "name" | "phone" | "auto" | null;
 
 export type CaptureMode = "idle" | "listening" | "saving" | "success" | "error";
 

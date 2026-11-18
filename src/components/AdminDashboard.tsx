@@ -5,14 +5,16 @@ import {
   CalendarDays,
   Download,
   Filter,
-  Loader2,
   RefreshCw,
   Search,
   Users,
 } from "lucide-react";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { downloadLeadsCsv } from "@/lib/csv";
 import { formatLeadDateTime, isLeadFromToday } from "@/lib/datetime";
 import { fetchLeads } from "@/lib/leads";
+import { friendlySaveError } from "@/lib/speech";
 import type { Lead } from "@/types/lead";
 
 export function AdminDashboard() {
@@ -31,7 +33,9 @@ export function AdminDashboard() {
       setLeads(result.leads);
       setDataSource(result.source);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load leads.");
+      setError(
+        friendlySaveError(err instanceof Error ? err.message : "Failed to load leads.")
+      );
     } finally {
       setLoading(false);
     }
@@ -187,13 +191,10 @@ export function AdminDashboard() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading leads…
-          </div>
+          <LoadingState label="Loading leads…" />
         ) : error ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+          <div className="mt-4">
+            <ErrorBanner message={error} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-sm text-slate-500">

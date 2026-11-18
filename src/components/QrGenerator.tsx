@@ -95,11 +95,12 @@ export function QrGenerator() {
             Booth ID / Name
           </span>
           <input
-            className="input-field"
+            className="input-field min-h-12"
             value={boothInput}
             onChange={(event) => setBoothInput(event.target.value)}
             placeholder="e.g. booth-a1 or North Hall 12"
             autoComplete="off"
+            enterKeyHint="done"
           />
           <p className="text-xs text-slate-500">
             Used in the URL as{" "}

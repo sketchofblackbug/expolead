@@ -1,4 +1,4 @@
-export type SpeechField = "name" | "phone";
+export type SpeechField = "name" | "phone" | "auto";
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -15,10 +15,12 @@ type SpeechRecognitionLike = {
 
 type SpeechRecognitionEventLike = {
   resultIndex: number;
-  results: ArrayLike<{
-    isFinal?: boolean;
-    0: { transcript: string };
-  } & ArrayLike<{ transcript: string }>>;
+  results: ArrayLike<
+    {
+      isFinal?: boolean;
+      0: { transcript: string };
+    } & ArrayLike<{ transcript: string }>
+  >;
 };
 
 declare global {
@@ -51,9 +53,9 @@ export function getTranscriptFromEvent(event: SpeechRecognitionEventLike): {
     const result = event.results[i];
     const text = result[0]?.transcript ?? "";
     if (result.isFinal) {
-      final += text;
+      final += `${text} `;
     } else {
-      interim += text;
+      interim += `${text} `;
     }
   }
 
@@ -67,16 +69,30 @@ export function speechErrorMessage(code: string): string {
   switch (code) {
     case "not-allowed":
     case "service-not-allowed":
-      return "Microphone permission was denied. You can still type your details.";
+      return "Microphone access was blocked. Allow mic permission in your browser, or type your details below.";
     case "no-speech":
-      return "No speech detected. Tap the button and try again.";
+      return "We didn’t catch that. Tap Start Voice Capture and try speaking a little louder.";
     case "audio-capture":
-      return "No microphone found. Please type your details instead.";
+      return "No microphone was found on this device. Please type your details instead.";
     case "network":
-      return "Speech recognition needs a network connection. Please try again.";
+      return "Voice recognition needs an internet connection. Check your network and try again.";
     case "aborted":
       return "";
     default:
-      return "Voice capture failed. Please try again or type your details.";
+      return "Voice capture had a problem. You can still type your name and phone number.";
   }
+}
+
+export function friendlySaveError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("failed to fetch") || lower.includes("network")) {
+    return "Couldn’t reach the server. Check your connection and try again.";
+  }
+  if (lower.includes("supabase") || lower.includes("invalid api key")) {
+    return "Lead storage isn’t configured correctly. Please ask the exhibitor for help.";
+  }
+  if (lower.includes("permission") || lower.includes("rls") || lower.includes("42501")) {
+    return "Saving was blocked by database permissions. Please ask the exhibitor for help.";
+  }
+  return message || "Unable to save your details. Please try again.";
 }
