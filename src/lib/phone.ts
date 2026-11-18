@@ -237,6 +237,15 @@ export function cleanSpokenName(transcript: string): string {
     "testing",
     "abc",
     "xyz",
+    "is",
+    "am",
+    "are",
+    "the",
+    "a",
+    "an",
+    "and",
+    "my",
+    "name",
   ]);
   const words = text.split(" ").filter(Boolean);
   const nameWords = words
