@@ -38,7 +38,8 @@ Without Supabase env vars, leads are stored in `localStorage` and the admin page
 1. Create a project at [supabase.com](https://supabase.com)
 2. Paste and run `supabase/schema.sql` in the SQL Editor
 3. Copy Project URL + anon key into `.env.local`
-4. Public capture can `INSERT`; only authenticated users can `SELECT` / `UPDATE` / `DELETE`
+4. Public capture can `INSERT`; public `SELECT` is enabled temporarily for `/admin` (lock down with auth later)
+5. If you already applied the older authenticated-only SELECT policy, run `supabase/migrate-public-select.sql`
 
 ## Scripts
 

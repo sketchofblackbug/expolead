@@ -19,21 +19,21 @@ create index if not exists leads_source_idx on public.leads (source);
 
 alter table public.leads enable row level security;
 
--- Public capture: anyone (anon + authenticated) can insert
+-- Public capture: anyone can insert
 create policy "Anyone can insert leads"
   on public.leads
   for insert
   to anon, authenticated
   with check (true);
 
--- Dashboard: only signed-in users can read
-create policy "Authenticated users can select leads"
+-- TEMP: public read for admin dashboard (replace with auth later)
+create policy "Anyone can select leads"
   on public.leads
   for select
-  to authenticated
+  to anon, authenticated
   using (true);
 
--- Dashboard: only signed-in users can update
+-- Keep write mutations authenticated-only for now
 create policy "Authenticated users can update leads"
   on public.leads
   for update
@@ -41,7 +41,6 @@ create policy "Authenticated users can update leads"
   using (true)
   with check (true);
 
--- Dashboard: only signed-in users can delete
 create policy "Authenticated users can delete leads"
   on public.leads
   for delete

@@ -8,8 +8,8 @@ const DEMO_LEADS: Lead[] = [
     name: "Priya Sharma",
     phone: "+91 98765 43210",
     email: "priya@example.com",
-    notes: null,
-    created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    notes: "Asked about pricing",
+    created_at: new Date().toISOString(),
     source: "voice",
   },
   {
@@ -29,7 +29,17 @@ const DEMO_LEADS: Lead[] = [
     phone: "+39 333 123 4567",
     email: "amelia@example.com",
     notes: null,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
+    source: "voice",
+  },
+  {
+    id: "demo-4",
+    booth_id: "booth-c3",
+    name: "Rahul Mehta",
+    phone: "+91 91234 56789",
+    email: null,
+    notes: "Wants a demo tomorrow",
+    created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
     source: "voice",
   },
 ];
@@ -60,7 +70,6 @@ export async function saveLead(payload: LeadInsert): Promise<Lead> {
 
   const supabase = createSupabaseClient();
 
-  // Insert without .select() — anon role cannot SELECT under RLS
   const { error } = await supabase.from("leads").insert({
     booth_id: localLead.booth_id,
     name: localLead.name,
@@ -92,14 +101,13 @@ export async function fetchLeads(): Promise<{
   const supabase = createSupabaseClient();
   const { data, error } = await supabase
     .from("leads")
-    .select("*")
+    .select("id, booth_id, name, phone, email, notes, created_at, source")
     .order("created_at", { ascending: false });
 
   if (error) {
-    // Expected until auth is wired — anon cannot SELECT
     throw new Error(
       error.message.includes("permission") || error.code === "42501"
-        ? "Sign in required to view leads (RLS). Auth will be added next."
+        ? "Unable to read leads. Run supabase/migrate-public-select.sql in the SQL Editor."
         : error.message
     );
   }
