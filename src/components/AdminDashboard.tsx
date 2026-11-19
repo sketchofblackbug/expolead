@@ -7,16 +7,20 @@ import {
   Download,
   Filter,
   Inbox,
+  Loader2,
+  MessageCircle,
   QrCode,
   RefreshCw,
   Search,
+  Store,
   Users,
 } from "lucide-react";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { WhatsAppStatusBadge } from "@/components/WhatsAppStatusBadge";
 import { downloadLeadsCsv } from "@/lib/csv";
 import { formatLeadDateTime, isLeadFromToday } from "@/lib/datetime";
-import { fetchLeads } from "@/lib/leads";
+import { fetchLeads, resendWhatsApp } from "@/lib/leads";
 import { friendlySaveError } from "@/lib/speech";
 import type { Lead } from "@/types/lead";
 
@@ -27,6 +31,7 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [boothFilter, setBoothFilter] = useState("all");
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -81,6 +86,26 @@ export function AdminDashboard() {
     downloadLeadsCsv(rows);
   };
 
+  const handleResend = async (leadId: string) => {
+    setResendingId(leadId);
+    setError(null);
+    try {
+      const result = await resendWhatsApp(leadId);
+      if (!result.ok) {
+        throw new Error(result.error || "Resend failed.");
+      }
+      await load();
+    } catch (err) {
+      setError(
+        friendlySaveError(err instanceof Error ? err.message : "WhatsApp resend failed.")
+      );
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const canResend = (lead: Lead) => lead.consent && lead.whatsapp_status === "failed";
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -100,6 +125,14 @@ export function AdminDashboard() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link href="/admin/booths" className="btn-secondary">
+            <Store className="h-4 w-4" />
+            Booths
+          </Link>
+          <Link href="/admin/whatsapp-test" className="btn-secondary">
+            <MessageCircle className="h-4 w-4" />
+            WA test
+          </Link>
           <button
             type="button"
             onClick={() => void load()}
@@ -256,10 +289,16 @@ export function AdminDashboard() {
                       {lead.booth_id}
                     </span>
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">
-                    {formatLeadDateTime(lead.created_at)}{" "}
-                    <span className="text-slate-400">(IST)</span>
-                  </p>
+                  <div className="mt-3 flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-xs text-slate-500">
+                      {formatLeadDateTime(lead.created_at)}{" "}
+                      <span className="text-slate-400">(IST)</span>
+                    </p>
+                    <WhatsAppStatusBadge
+                      status={lead.whatsapp_status}
+                      error={lead.whatsapp_error}
+                    />
+                  </div>
                   {lead.notes ? (
                     <p className="mt-2 break-words rounded-xl bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100">
                       {lead.notes}
@@ -267,6 +306,21 @@ export function AdminDashboard() {
                   ) : (
                     <p className="mt-2 text-sm italic text-slate-400">No notes</p>
                   )}
+                  {canResend(lead) ? (
+                    <button
+                      type="button"
+                      className="btn-secondary mt-3 min-h-10 w-full text-sm"
+                      disabled={resendingId === lead.id}
+                      onClick={() => void handleResend(lead.id)}
+                    >
+                      {resendingId === lead.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MessageCircle className="h-4 w-4" />
+                      )}
+                      Resend WhatsApp
+                    </button>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -280,7 +334,9 @@ export function AdminDashboard() {
                     <th className="px-3 py-3 font-semibold">Phone</th>
                     <th className="px-3 py-3 font-semibold">Booth ID</th>
                     <th className="px-3 py-3 font-semibold">Date / Time</th>
+                    <th className="px-3 py-3 font-semibold">WhatsApp</th>
                     <th className="px-3 py-3 font-semibold">Notes</th>
+                    <th className="px-3 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -305,11 +361,34 @@ export function AdminDashboard() {
                         {formatLeadDateTime(lead.created_at)}
                         <span className="ml-1 text-xs text-slate-400">IST</span>
                       </td>
+                      <td className="max-w-[12rem] px-3 py-3.5">
+                        <WhatsAppStatusBadge
+                          status={lead.whatsapp_status}
+                          error={lead.whatsapp_error}
+                        />
+                      </td>
                       <td className="max-w-xs px-3 py-3.5 text-slate-700">
                         {lead.notes ? (
                           <span className="line-clamp-2">{lead.notes}</span>
                         ) : (
                           <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5">
+                        {canResend(lead) ? (
+                          <button
+                            type="button"
+                            className="btn-secondary min-h-9 px-3 text-xs"
+                            disabled={resendingId === lead.id}
+                            onClick={() => void handleResend(lead.id)}
+                          >
+                            {resendingId === lead.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : null}
+                            Resend
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
                         )}
                       </td>
                     </tr>

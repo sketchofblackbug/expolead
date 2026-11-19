@@ -8,7 +8,19 @@ function escapeCsvValue(value: string): string {
 }
 
 export function leadsToCsv(leads: Lead[]): string {
-  const headers = ["Name", "Phone", "Booth ID", "Date/Time", "Notes", "Source", "Email", "ID"];
+  const headers = [
+    "Name",
+    "Phone",
+    "Booth ID",
+    "Date/Time",
+    "Notes",
+    "Source",
+    "Consent",
+    "WhatsApp Status",
+    "WhatsApp Error",
+    "Email",
+    "ID",
+  ];
 
   const rows = leads.map((lead) =>
     [
@@ -18,6 +30,9 @@ export function leadsToCsv(leads: Lead[]): string {
       lead.created_at,
       lead.notes ?? "",
       lead.source,
+      lead.consent ? "yes" : "no",
+      lead.whatsapp_status ?? "",
+      lead.whatsapp_error ?? "",
       lead.email ?? "",
       lead.id,
     ]

@@ -29,7 +29,12 @@ import {
   speechErrorMessage,
   type SpeechField,
 } from "@/lib/speech";
-import type { CaptureMode, LeadCaptureFormState, ListeningField } from "@/types/lead";
+import type {
+  BoothPublicInfo,
+  CaptureMode,
+  LeadCaptureFormState,
+  ListeningField,
+} from "@/types/lead";
 
 interface LeadCaptureFormProps {
   boothId: string;
@@ -64,6 +69,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   const [consent, setConsent] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [touchedPhone, setTouchedPhone] = useState(false);
+  const [boothInfo, setBoothInfo] = useState<BoothPublicInfo | null>(null);
 
   const recognitionRef = useRef<ReturnType<typeof createSpeechRecognition>>(null);
   const activeFieldRef = useRef<SpeechField | null>(null);
@@ -77,6 +83,33 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
   useEffect(() => {
     setSpeechSupported(isSpeechRecognitionSupported());
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadBooth = async () => {
+      try {
+        const response = await fetch(`/api/booths/${encodeURIComponent(boothId)}`);
+        const data = (await response.json()) as { booth?: BoothPublicInfo };
+        if (active && data.booth) setBoothInfo(data.booth);
+      } catch {
+        if (active) {
+          setBoothInfo({
+            id: boothId,
+            brand_name: boothId,
+            booth_location: "",
+            brochure_url: "",
+            whatsapp_enabled: true,
+          });
+        }
+      }
+    };
+    void loadBooth();
+    return () => {
+      active = false;
+    };
+  }, [boothId]);
+
+  const brandName = boothInfo?.brand_name?.trim() || boothId;
 
   const clearListenTimers = () => {
     if (silenceTimerRef.current) {
@@ -326,7 +359,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     }
 
     if (!consent) {
-      nextErrors.consent = "Please agree so the exhibitor can follow up with you.";
+      nextErrors.consent = `Please agree so ${brandName} can contact you on WhatsApp and phone.`;
     }
 
     setFieldErrors(nextErrors);
@@ -368,6 +401,7 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
         phone: result.normalized,
         notes: form.notes.trim() || null,
         source: usedVoice ? "voice" : "manual",
+        consent: true,
       });
 
       // Clear only after success
@@ -471,11 +505,14 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
     >
       <div className="border-b border-slate-100 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 px-4 py-5 text-white sm:px-7 sm:py-7">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-200">
-          Booth
+          {brandName !== boothId ? brandName : "Booth"}
         </p>
         <h1 className="mt-1 break-words text-xl font-semibold tracking-tight sm:break-all sm:text-3xl">
           {boothId}
         </h1>
+        {boothInfo?.booth_location ? (
+          <p className="mt-1 text-sm text-brand-200">{boothInfo.booth_location}</p>
+        ) : null}
         <p className="mt-2 text-sm leading-relaxed text-brand-100">
           Say your name and phone number — or type them below — then submit.
         </p>
@@ -686,17 +723,16 @@ export function LeadCaptureForm({ boothId }: LeadCaptureFormProps) {
             />
             <span>
               <span className="font-medium text-brand-950">
-                I agree to share my name and phone number
+                I agree to be contacted by {brandName} on WhatsApp and phone.
               </span>{" "}
-              with this exhibitor for follow-up about their products or services.
-              Your details are only used for this booth’s outreach.
+              Your name and number are only used for this booth’s follow-up.
             </span>
           </label>
           {fieldErrors.consent ? (
             <p className="mt-2 text-xs font-medium text-red-600">{fieldErrors.consent}</p>
           ) : (
             <p className="mt-2 text-xs text-slate-500">
-              You must check this box before submitting.
+              Required — WhatsApp is only sent after you check this box.
             </p>
           )}
         </div>
